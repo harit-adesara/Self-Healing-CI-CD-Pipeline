@@ -4,7 +4,7 @@ import io
 import zipfile
 import requests
 from state import Data,ErrorClassification,CommitMessage
-from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 from github import Github
 from github.Auth import AppAuth
 from github import InputGitTreeElement
@@ -12,7 +12,11 @@ from dotenv import load_dotenv
     
 load_dotenv()
 
-model=ChatGroq(model="llama-3.3-70b-versatile")
+model=ChatOpenAI(
+    api_key=os.getenv("CEREBRAS_API_KEY"),
+    model="gpt-oss-120b",
+    base_url="https://api.cerebras.ai/v1"
+)
 
 def get_github_client(installation_id: int):
     APP_ID = os.getenv("GITHUB_APP_ID")
