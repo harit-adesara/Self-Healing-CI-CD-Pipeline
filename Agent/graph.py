@@ -1,6 +1,5 @@
 from langgraph.graph import StateGraph,START,END
 from state import Data
-from IPython.display import Image
 from agent import solveCICD
 from function import check_branch,commitMsg,successMail,commit,download_workflow_logs,fetch_tree,classify_error,divide_flow_based_on_fixability,sendEmail,create_branch,suggestFix
 
@@ -26,10 +25,3 @@ graph.add_edge("solve_CICD","commitMsg")
 graph.add_edge("commitMsg","commit")
 
 workflow=graph.compile()
-
-png = workflow.get_graph().draw_mermaid_png()
-
-with open("graph.png", "wb") as f:
-    f.write(png)
-
-print("Graph saved as graph.png")
