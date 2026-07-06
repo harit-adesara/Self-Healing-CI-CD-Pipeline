@@ -9,6 +9,7 @@ from github import Github
 from github.Auth import AppAuth
 from github import InputGitTreeElement
 from dotenv import load_dotenv
+from langsmith import traceable
     
 load_dotenv()
 
@@ -28,6 +29,7 @@ def get_github_client(installation_id: int):
 
     return Github(auth=installation_auth)
 
+@traceable(name="fetch tree")
 def fetch_tree(state: Data):
     """
     Fetch all file paths in the repository.
@@ -51,6 +53,7 @@ def fetch_tree(state: Data):
         "repository_tree": repository_tree
     }
 
+@traceable(name="create branch")
 def create_branch(state: Data):
     """
     Create a new branch from the current commit.
@@ -71,6 +74,7 @@ def create_branch(state: Data):
         "branch_name": branch_name
     }
 
+@traceable(name="download logs")
 def download_workflow_logs(state: Data):
     """
     Download and extract GitHub Actions workflow logs.
@@ -108,6 +112,7 @@ def download_workflow_logs(state: Data):
         "logs": logs
     }
 
+@traceable(name="check branch")
 def check_branch(state):
     """
     Prevent infinite self-healing loops.
@@ -130,6 +135,7 @@ def check_branch(state):
 
     return "logs"
 
+@traceable(name="classify error")
 def classify_error(state:Data):
     """
     CI/CD error classification node
@@ -203,6 +209,7 @@ Return only the structured output.
         "reason":data["reason"]
     }
 
+@traceable(name="divide flow")
 def divide_flow_based_on_fixability(state:Data):
 
     print("divide flow")
@@ -212,6 +219,7 @@ def divide_flow_based_on_fixability(state:Data):
     else:
         return "suggest"
 
+@traceable(name="suggest fix")
 def suggestFix(state:Data):
     prompt = f"For this error {state['reason']} suggest fix how to solve this"
 
@@ -225,6 +233,7 @@ def suggestFix(state:Data):
 def sendEmail():
     return
 
+@traceable(name="commit")
 def commit(state: Data):
     """
     Commit all staged file modifications to the AI_FIX branch.
@@ -292,6 +301,7 @@ def commit(state: Data):
 def successMail():
     return
 
+@traceable(name="commit message")
 def commitMsg(state:Data):
 
     structured_llm = model.with_structured_output(CommitMessage)
