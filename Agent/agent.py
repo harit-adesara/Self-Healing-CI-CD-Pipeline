@@ -3,7 +3,7 @@ from agent_tools import read_file, read_multiple_files, search_code, update_file
 from state import Data
 from langchain_groq import ChatGroq
 
-llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
+llm = ChatGroq(model="llama-3.3-70b-versatile")
 tools = [read_file, read_multiple_files, search_code, update_file]
 
 agent = create_agent(
