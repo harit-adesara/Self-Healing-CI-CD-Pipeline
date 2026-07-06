@@ -1,5 +1,4 @@
 fastapi==0.139.0
-ipython==8.30.0
 ipython==9.15.0
 langchain==1.3.11
 langchain_core==1.4.8
