@@ -9,6 +9,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+def _resolve_ref(state: Data):
+    """
+    Always read from the branch head, never a possibly-stale commit_sha.
+    branch_name is set once a fix branch exists (created or reused);
+    fall back to the original trigger branch otherwise.
+    """
+    return state.get("branch_name") or state["branch"]
+
 @tool
 def read_file(
     state: Annotated[Data, InjectedState],
@@ -21,7 +29,7 @@ def read_file(
     try:
         github = get_github_client(state["installation_id"])
         repo = github.get_repo(f"{state['owner']}/{state['repo']}")
-        file = repo.get_contents(file_path, ref=state["commit_sha"])
+        file = repo.get_contents(file_path, ref=_resolve_ref(state))
         content = file.decoded_content.decode("utf-8")
     except Exception as e:
         return f"Error reading '{file_path}': {e}"
@@ -34,11 +42,12 @@ def read_file(
         "messages": [
             {
                 "role": "tool",
-                "content": f"Contents of '{file_path}':\n\n{content}", 
+                "content": f"Contents of '{file_path}':\n\n{content}",
                 "tool_call_id": tool_call_id,
             }
         ],
     })
+
 
 @tool
 def read_multiple_files(
@@ -49,13 +58,14 @@ def read_multiple_files(
     """..."""
     github = get_github_client(state["installation_id"])
     repo = github.get_repo(f"{state['owner']}/{state['repo']}")
+    ref = _resolve_ref(state)
     merged = dict(state["file_contents"])
     read_ok = []
     contents_summary = []
 
     for path in file_paths:
         try:
-            file = repo.get_contents(path, ref=state["commit_sha"])
+            file = repo.get_contents(path, ref=ref)
             content = file.decoded_content.decode("utf-8")
             merged[path] = content
             read_ok.append(path)
@@ -76,20 +86,19 @@ def read_multiple_files(
         ],
     })
 
+
 @tool
 def search_code(state: Annotated[Data, InjectedState], query: str):
     """
-    Search the repository to locate files, imports, classes, functions,
-    workflows, configuration, or error-related code.
+    Search the DEFAULT branch of the repository to locate files, imports,
+    classes, functions, workflows, or configuration.
 
-    Use this tool whenever you do not know which file contains the required information.
-
-    Examples:
-    - import
-    - FastAPI
-    - package.json
-    - requirements.txt
-    - Dockerfile
+    NOTE: This tool only searches the repository's default branch (e.g. main),
+    regardless of which branch is currently being worked on. It cannot see
+    changes made on AI_FIX branches. For branch-accurate results, prefer
+    checking `repository_tree` (already scoped to the current branch) and
+    use read_file/read_multiple_files to inspect actual current contents.
+    ...
     """
     try:
         github = get_github_client(state["installation_id"])
