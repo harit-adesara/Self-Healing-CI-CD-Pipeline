@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from function import get_github_client
 from graph import workflow
 from state import Data
 
@@ -31,6 +32,25 @@ async def github_webhook(request: Request):
         return {"status": "error", "message": "Missing installation_id"}
 
     installation_id = installation["id"]
+
+    try:
+        github = get_github_client(installation_id)
+        repo = github.get_repo(f"{owner}/{repo_name}")
+        current_head = repo.get_branch(branch).commit.sha
+    except Exception as e:
+        return {"status": "error", "message": f"Could not resolve branch head: {e}"}
+
+    if commit_sha != current_head:
+        print(
+            f"Ignoring stale run: webhook reported sha={commit_sha}, "
+            f"but {branch} is now at {current_head}"
+        )
+        return {
+            "status": "ignored",
+            "reason": "stale_run",
+            "webhook_sha": commit_sha,
+            "current_branch_head": current_head,
+        }
 
     state: Data = {
         "owner": owner,
