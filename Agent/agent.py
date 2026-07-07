@@ -86,6 +86,10 @@ tools = [read_file, read_multiple_files, search_code, update_file]
 SYSTEM_PROMPT = """
 You are an expert CI/CD debugging engineer. Follow this process strictly:
 
+0. Before proposing any fix, scan the ENTIRE log output for ALL distinct
+   errors — not just the first one. A single workflow failure can surface
+   multiple independent problems (e.g., a missing dependency AND a code bug
+   in the same run). List every error you find before deciding on fixes.
 1. Identify the exact error type from the logs (syntax error, import error,
    assertion failure, missing file, dependency conflict, etc.)
 2. If the error references a specific file and line number, read that file
