@@ -2,8 +2,9 @@ from langchain.agents import create_agent
 from agent_tools import read_file, read_multiple_files, search_code, update_file
 from state import Data
 from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 
-llm = ChatGroq(model="llama-3.3-70b-versatile")
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
 tools = [read_file, read_multiple_files, search_code, update_file]
 
 agent = create_agent(
