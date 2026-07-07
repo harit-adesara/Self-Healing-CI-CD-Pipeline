@@ -74,6 +74,16 @@ def create_branch(state: Data):
         "branch_name": branch_name
     }
 
+@traceable(name="set branch")
+def set_branch(state:Data):
+    """
+    This will set currently used ai fix branch
+    """
+
+    return {
+        "branch_name":state['branch_name']
+    }
+
 @traceable(name="download logs")
 def download_workflow_logs(state: Data):
     """
@@ -112,28 +122,25 @@ def download_workflow_logs(state: Data):
         "logs": logs
     }
 
-@traceable(name="check branch")
+@traceable(name="check_branch")
 def check_branch(state):
     """
-    Prevent infinite self-healing loops.
-
-    If the workflow is already running on an AI-generated fix branch,
-    stop the pipeline.
+    Nested routing after classification:
+    1. If the error isn't auto-fixable, go straight to suggest_fix.
+    2. If it is auto-fixable, check the branch — if already on an
+       AI-generated fix branch, skip creating a new branch; otherwise
+       create one first (to avoid infinite self-healing loops).
     """
+
+    if state["fixability"] != "auto":
+        return "suggest"
 
     branch = state["branch"].strip()
 
-    print("check branch")
-
     if branch.startswith("AI_FIX"):
-        state["success"] = False
-        state["root_cause"] = (
-            f"Workflow is running on AI-generated branch '{branch}'. "
-            "Skipping automatic repair to avoid recursive fix attempts."
-        )
-        return "suggest"
+        return "set_branch"
 
-    return "logs"
+    return "create_branch"
 
 @traceable(name="classify error")
 def classify_error(state:Data):
@@ -208,16 +215,6 @@ Return only the structured output.
         "confidence":data["confidence"],
         "reason":data["reason"]
     }
-
-@traceable(name="divide flow")
-def divide_flow_based_on_fixability(state:Data):
-
-    print("divide flow")
-
-    if state["fixability"]=="auto":
-        return 'solve'
-    else:
-        return "suggest"
 
 @traceable(name="suggest fix")
 def suggestFix(state:Data):
