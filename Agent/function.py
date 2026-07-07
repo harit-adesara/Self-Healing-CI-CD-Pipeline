@@ -8,6 +8,7 @@ from langchain_openai import ChatOpenAI
 from github import Github
 from github.Auth import AppAuth
 from github import InputGitTreeElement
+from github.GithubException import UnknownObjectException
 from dotenv import load_dotenv
 from langsmith import traceable
     
@@ -233,7 +234,8 @@ def sendEmail():
 @traceable(name="commit")
 def commit(state: Data):
     """
-    Commit all staged file modifications to the AI_FIX branch.
+    Commit all modified files to an existing branch.
+    Assumes the branch has already been created or selected.
     """
 
     if not state["modified_files"]:
@@ -249,15 +251,18 @@ def commit(state: Data):
         f"{state['owner']}/{state['repo']}"
     )
 
-    # Get AI_FIX branch reference
-    ref = repo.get_git_ref(
-        f"heads/{state['branch_name']}"
-    )
+    try:
+        ref = repo.get_git_ref(
+            f"heads/{state['branch_name']}"
+        )
+    except UnknownObjectException:
+        return {
+            "success": False,
+            "reason": f"Branch '{state['branch_name']}' does not exist."
+        }
 
-    # Latest commit on AI_FIX branch
     latest_commit = repo.get_git_commit(ref.object.sha)
 
-    # Base tree
     base_tree = repo.get_git_tree(latest_commit.tree.sha)
 
     tree_elements = []
@@ -272,23 +277,20 @@ def commit(state: Data):
             )
         )
 
-    # Create new tree
     new_tree = repo.create_git_tree(
         tree=tree_elements,
         base_tree=base_tree,
     )
 
-    # Create commit
     new_commit = repo.create_git_commit(
-        message=state["commitMsg"] or "AI: Fix CI/CD pipeline",
+        message=state.get("commitMsg") or "Fix CI/CD pipeline",
         tree=new_tree,
         parents=[latest_commit],
     )
 
-    # Move AI_FIX branch to new commit
     ref.edit(new_commit.sha)
 
-    print("commit")
+    print(f"Committed to {state['branch_name']}")
 
     return {
         "commit_sha_new": new_commit.sha,
