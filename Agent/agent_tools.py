@@ -16,14 +16,7 @@ def read_file(
     file_path: str,
 ):
     """
-    Read the complete contents of a repository file.It will read single file from the repository and store it in state["file_contents"].
-
-    Use this tool whenever you need to inspect source code, workflow files,
-    configuration files, Dockerfiles, or dependency files before making a change.
-
-    IMPORTANT:
-    - Do not guess file contents.
-    - Always read the file before modifying it.
+    Read the complete contents of a repository file...
     """
     try:
         github = get_github_client(state["installation_id"])
@@ -41,12 +34,11 @@ def read_file(
         "messages": [
             {
                 "role": "tool",
-                "content": f"Read '{file_path}' successfully.",
+                "content": f"Contents of '{file_path}':\n\n{content}", 
                 "tool_call_id": tool_call_id,
             }
         ],
     })
-
 
 @tool
 def read_multiple_files(
@@ -54,37 +46,35 @@ def read_multiple_files(
     tool_call_id: Annotated[str, InjectedToolCallId],
     file_paths: list[str],
 ):
-    """
-    Read several repository files in one call.
-
-    Use this tool when diagnosing issues involving multiple files such as
-    workflows, Dockerfiles, configuration files, or source code.
-
-    Prefer this tool instead of multiple read_file calls whenever possible.
-    """
+    """..."""
     github = get_github_client(state["installation_id"])
     repo = github.get_repo(f"{state['owner']}/{state['repo']}")
     merged = dict(state["file_contents"])
     read_ok = []
+    contents_summary = []
+
     for path in file_paths:
         try:
             file = repo.get_contents(path, ref=state["commit_sha"])
-            merged[path] = file.decoded_content.decode("utf-8")
+            content = file.decoded_content.decode("utf-8")
+            merged[path] = content
             read_ok.append(path)
+            contents_summary.append(f"--- {path} ---\n{content}")
         except Exception as e:
             print(f"Error reading {path}: {e}")
+
+    summary_text = "\n\n".join(contents_summary) if contents_summary else "No files could be read."
 
     return Command(update={
         "file_contents": merged,
         "messages": [
             {
                 "role": "tool",
-                "content": f"Read files: {read_ok}",
+                "content": summary_text,
                 "tool_call_id": tool_call_id,
             }
         ],
     })
-
 
 @tool
 def search_code(state: Annotated[Data, InjectedState], query: str):
@@ -109,7 +99,6 @@ def search_code(state: Annotated[Data, InjectedState], query: str):
         return f"Found files: {files}"
     except Exception as e:
         return f"Error searching code: {e}"
-
 
 @tool
 def create_file(
@@ -154,7 +143,6 @@ def create_file(
         ],
     })
 
-
 @tool
 def update_file(
     state: Annotated[Data, InjectedState],
@@ -183,19 +171,19 @@ def update_file(
     try:
         if operation == "replace":
             if target not in file_content:
-                return "Error: target text not found."
+                return f"Error: target text not found in '{file_path}'. Current file content is:\n\n{file_content}"
             updated = file_content.replace(target, content, 1)
         elif operation == "delete":
             if target not in file_content:
-                return "Error: target text not found."
+                return f"Error: target text not found in '{file_path}'. Current file content is:\n\n{file_content}"
             updated = file_content.replace(target, "", 1)
         elif operation == "insert_after":
             if target not in file_content:
-                return "Error: target text not found."
+                return f"Error: target text not found in '{file_path}'. Current file content is:\n\n{file_content}"
             updated = file_content.replace(target, target + "\n" + content, 1)
         elif operation == "insert_before":
             if target not in file_content:
-                return "Error: target text not found."
+                return f"Error: target text not found in '{file_path}'. Current file content is:\n\n{file_content}"
             updated = file_content.replace(target, content + "\n" + target, 1)
         else:
             return "Error: invalid operation."

@@ -57,12 +57,14 @@
 #     commit_message: str = Field(
 #         description="A concise Git commit message (maximum 72 characters)."
 #     )
-from typing import List, Dict, Optional, Literal
+# 
+from typing import List, Dict, Optional, Literal, TypedDict, Annotated
 from pydantic import BaseModel, Field
-from langchain.agents import AgentState
+from langgraph.graph.message import add_messages
 
 
-class Data(AgentState):
+class Data(TypedDict):
+    messages: Annotated[list, add_messages]
     owner: str
     repo: str
     installation_id: int
