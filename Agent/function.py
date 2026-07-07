@@ -33,14 +33,19 @@ def get_github_client(installation_id: int):
 @traceable(name="fetch tree")
 def fetch_tree(state: Data):
     """
-    Fetch all file paths in the repository.
+    Fetch all file paths in the repository, always from the
+    CURRENT head of state['branch'] — not the webhook's commit_sha,
+    which can be stale (e.g. on workflow re-runs).
     """
 
     github = get_github_client(state["installation_id"])
-
     repo = github.get_repo(f"{state['owner']}/{state['repo']}")
 
-    tree = repo.get_git_tree(state['branch'], recursive=True)
+    # Resolve the live head commit of the branch right now
+    branch_ref = repo.get_branch(state["branch"])
+    current_sha = branch_ref.commit.sha
+
+    tree = repo.get_git_tree(current_sha, recursive=True)
 
     repository_tree = [
         item.path
@@ -48,31 +53,39 @@ def fetch_tree(state: Data):
         if item.type == "blob"
     ]
 
-    print("tree fetch")
+    print(f"tree fetch @ {current_sha} (branch={state['branch']})")
 
     return {
-        "repository_tree": repository_tree
+        "repository_tree": repository_tree,
+        "commit_sha": current_sha,   # overwrite stale webhook sha with the real one
     }
 
 @traceable(name="create branch")
 def create_branch(state: Data):
     """
-    Create a new branch from the current commit.
+    Create a new branch from the CURRENT head of state['branch'],
+    not the possibly-stale webhook commit_sha.
     """
 
     github = get_github_client(state["installation_id"])
-    branch_name = f"AI_FIX-{uuid.uuid4().hex[:8]}"
     repo = github.get_repo(f"{state['owner']}/{state['repo']}")
+
+    # Re-resolve live head instead of trusting state["commit_sha"]
+    branch_ref = repo.get_branch(state["branch"])
+    current_sha = branch_ref.commit.sha
+
+    branch_name = f"AI_FIX-{uuid.uuid4().hex[:8]}"
 
     repo.create_git_ref(
         ref=f"refs/heads/{branch_name}",
-        sha=state["commit_sha"]
+        sha=current_sha
     )
 
-    print("create branch")
+    print(f"create branch {branch_name} from {current_sha}")
 
     return {
-        "branch_name": branch_name
+        "branch_name": branch_name,
+        "commit_sha": current_sha,
     }
 
 @traceable(name="set branch")
