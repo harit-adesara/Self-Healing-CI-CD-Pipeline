@@ -40,7 +40,7 @@ def fetch_tree(state: Data):
 
     repo = github.get_repo(f"{state['owner']}/{state['repo']}")
 
-    tree = repo.get_git_tree(repo.default_branch, recursive=True)
+    tree = repo.get_git_tree(state['branch'], recursive=True)
 
     repository_tree = [
         item.path
@@ -82,7 +82,7 @@ def set_branch(state:Data):
     """
 
     return {
-        "branch_name":state['branch_name']
+        "branch_name":state['branch']
     }
 
 @traceable(name="download logs")
