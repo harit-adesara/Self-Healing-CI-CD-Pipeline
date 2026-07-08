@@ -25,7 +25,6 @@ async def github_webhook(request: Request):
     owner = repo_info.get("owner", {}).get("login")
     repo_name = repo_info.get("name")
 
-    commit_sha = workflow_run.get("head_sha", "")
     branch = workflow_run.get("head_branch", "")
     workflow_id = workflow_run.get("workflow_id")
     run_id = workflow_run.get("id")
@@ -66,11 +65,6 @@ async def github_webhook(request: Request):
         live_sha = live_branch_ref.commit.sha
     except Exception as e:
         return {"status": "error", "message": f"Could not resolve live branch head: {e}"}
-
-    print(
-        f"Pinned working_sha={live_sha} for {owner}/{repo_name}@{branch} "
-        f"(webhook reported head_sha={commit_sha})"
-    )
 
     state: Data = {
         "owner": owner,
