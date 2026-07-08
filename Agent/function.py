@@ -65,19 +65,24 @@ def summarize_logs_node(state: Data):
 @traceable(name="fetch tree")
 def fetch_tree(state: Data):
     """
-    Fetch all file paths in the repository, always from the
-    CURRENT head of state['branch'] — not the webhook's commit_sha,
-    which can be stale (e.g. on workflow re-runs).
+    Fetch all file paths in the repository from the PINNED working_sha —
+    the exact commit already verified as current by main.py before this
+    run started.
+
+    Deliberately does NOT re-fetch the branch's live head here. Doing so
+    would risk returning a different commit than what main.py pinned (if
+    a new commit lands on the branch mid-run), which would make the tree
+    built here inconsistent with the commit every other node/tool in this
+    run is reading from — reintroducing the exact race condition working_sha
+    exists to prevent.
     """
 
     github = get_github_client(state["installation_id"])
     repo = github.get_repo(f"{state['owner']}/{state['repo']}")
 
-    # Resolve the live head commit of the branch right now
-    branch_ref = repo.get_branch(state["branch"])
-    current_sha = branch_ref.commit.sha
+    ref_sha = state["working_sha"]
 
-    tree = repo.get_git_tree(current_sha, recursive=True)
+    tree = repo.get_git_tree(ref_sha, recursive=True)
 
     repository_tree = [
         item.path
@@ -85,49 +90,52 @@ def fetch_tree(state: Data):
         if item.type == "blob"
     ]
 
-    print(f"tree fetch @ {current_sha} (branch={state['branch']})")
-
     return {
         "repository_tree": repository_tree,
-        "commit_sha": current_sha,   # overwrite stale webhook sha with the real one
     }
 
 @traceable(name="create branch")
 def create_branch(state: Data):
     """
-    Create a new branch from the CURRENT head of state['branch'],
-    not the possibly-stale webhook commit_sha.
+    Create a new branch from the PINNED working_sha — the same commit
+    fetch_tree already built its tree from — so the tree the agent
+    reasoned about and the branch it commits fixes to are guaranteed
+    to be the same snapshot, regardless of what else lands on the
+    source branch while this run is in progress.
     """
 
     github = get_github_client(state["installation_id"])
     repo = github.get_repo(f"{state['owner']}/{state['repo']}")
 
-    # Re-resolve live head instead of trusting state["commit_sha"]
-    branch_ref = repo.get_branch(state["branch"])
-    current_sha = branch_ref.commit.sha
-
+    ref_sha = state["working_sha"]
     branch_name = f"AI_FIX-{uuid.uuid4().hex[:8]}"
 
     repo.create_git_ref(
         ref=f"refs/heads/{branch_name}",
-        sha=current_sha
+        sha=ref_sha
     )
-
-    print(f"create branch {branch_name} from {current_sha}")
 
     return {
         "branch_name": branch_name,
-        "commit_sha": current_sha,
     }
 
 @traceable(name="set branch")
-def set_branch(state:Data):
+def set_branch(state: Data):
     """
-    This will set currently used ai fix branch
+    Reused AI_FIX branch case (a workflow re-ran on a branch the agent
+    already created in a previous run).
+
+    working_sha was already pinned in main.py from the webhook's
+    head_sha — which, for a re-run on an existing AI_FIX branch, IS
+    that branch's tip at trigger time (a workflow only fires against a
+    real commit that exists on the branch, and main.py already verified
+    via the run-ID check that this is the latest run for it). No
+    re-fetch needed; using the pinned value keeps this run internally
+    consistent with fetch_tree and create_branch.
     """
 
     return {
-        "branch_name":state['branch']
+        "branch_name": state["branch"],
     }
 
 @traceable(name="download logs")

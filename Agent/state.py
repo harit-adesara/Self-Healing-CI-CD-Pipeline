@@ -13,6 +13,7 @@ class Data(TypedDict):
     workflow_file: str
     branch: str
     commit_sha: str
+    working_sha: Optional[str]
     error_type: str
     fixability: str
     reason: str

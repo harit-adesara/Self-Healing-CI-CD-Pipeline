@@ -12,11 +12,14 @@ load_dotenv()
 
 def _resolve_ref(state: Data):
     """
-    Always read from the branch head, never a possibly-stale commit_sha.
-    branch_name is set once a fix branch exists (created or reused);
-    fall back to the original trigger branch otherwise.
+    Use the ref pinned once at the start of this run (working_sha), so all
+    reads within a single agent session see a consistent, unmoving snapshot
+    of the repository — even if the branch receives new commits mid-run.
+    Falls back to branch_name / branch only if working_sha was never set
+    (should not normally happen, since main.py sets it before invoking
+    the graph).
     """
-    return state.get("branch_name") or state["branch"]
+    return state.get("working_sha") or state.get("branch_name") or state["branch"]
 
 
 @tool
@@ -33,7 +36,6 @@ def read_file(
     GitHub content — never re-fetches a file that has already been
     edited, since that would return stale/pre-fix content.
     """
-
     if file_path in state.get("modified_files", {}):
         content = state["modified_files"][file_path]
         return Command(update={
