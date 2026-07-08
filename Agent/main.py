@@ -5,6 +5,7 @@ from state import Data
 
 app = FastAPI()
 
+
 @app.post("/webhook")
 async def github_webhook(request: Request):
     payload = await request.json()
@@ -20,12 +21,14 @@ async def github_webhook(request: Request):
             "reason": f"event={event}, action={action}, conclusion={conclusion}",
         }
 
-    repo = payload.get("repository", {})
-    owner = repo.get("owner", {}).get("login")
-    repo_name = repo.get("name")
+    repo_info = payload.get("repository", {})
+    owner = repo_info.get("owner", {}).get("login")
+    repo_name = repo_info.get("name")
 
     commit_sha = workflow_run.get("head_sha", "")
     branch = workflow_run.get("head_branch", "")
+    workflow_id = workflow_run.get("workflow_id")
+    run_id = workflow_run.get("id")
 
     installation = payload.get("installation")
     if not installation or "id" not in installation:
@@ -36,27 +39,33 @@ async def github_webhook(request: Request):
     try:
         github = get_github_client(installation_id)
         repo = github.get_repo(f"{owner}/{repo_name}")
-        current_head = repo.get_branch(branch).commit.sha
     except Exception as e:
-        return {"status": "error", "message": f"Could not resolve branch head: {e}"}
+        return {"status": "error", "message": f"Could not authenticate/resolve repo: {e}"}
 
-    if commit_sha != current_head:
+    try:
+        gh_workflow = repo.get_workflow(workflow_id)
+        runs = gh_workflow.get_runs(branch=branch)
+        latest_run = runs[0] if runs.totalCount > 0 else None
+    except Exception as e:
+        return {"status": "error", "message": f"Could not resolve latest run: {e}"}
+
+    if latest_run is None or latest_run.id != run_id:
         print(
-            f"Ignoring stale run: webhook reported sha={commit_sha}, "
-            f"but {branch} is now at {current_head}"
+            f"Ignoring stale run: webhook run_id={run_id}, "
+            f"latest run for {branch} is {latest_run.id if latest_run else None}"
         )
         return {
             "status": "ignored",
             "reason": "stale_run",
-            "webhook_sha": commit_sha,
-            "current_branch_head": current_head,
+            "webhook_run_id": run_id,
+            "latest_run_id": latest_run.id if latest_run else None,
         }
 
     state: Data = {
         "owner": owner,
         "repo": repo_name,
         "installation_id": installation_id,
-        "workflow_run_id": workflow_run.get("id"),
+        "workflow_run_id": run_id,
         "workflow_name": workflow_run.get("name", ""),
         "workflow_file": "",
         "branch": branch,
@@ -75,7 +84,7 @@ async def github_webhook(request: Request):
         "commitMsg": "",
         "commit_sha_new": None,
         "success": False,
-        "messages": []
+        "messages": [],
     }
 
     try:

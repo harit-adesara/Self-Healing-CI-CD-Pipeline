@@ -8,6 +8,7 @@ from langchain_openai import ChatOpenAI
 from github import Github
 from github.Auth import AppAuth
 from github import InputGitTreeElement
+from langchain_core.messages import SystemMessage,HumanMessage
 from github.GithubException import UnknownObjectException
 from dotenv import load_dotenv
 from langsmith import traceable
@@ -29,6 +30,37 @@ def get_github_client(installation_id: int):
     installation_auth = auth.get_installation_auth(installation_id)
 
     return Github(auth=installation_auth)
+
+@traceable(name="Summarize logs")
+def summarize_logs_node(state: Data):
+    raw_logs = state['logs'] or ""
+
+    if not raw_logs:
+        return state
+
+    system_prompt = (
+        "You are analyzing CI/CD failure logs. Extract ONLY the parts "
+        "that are relevant to diagnosing why the build/test failed. "
+        "This includes: the actual error message(s), stack trace(s), "
+        "failing test name(s), and a few lines of surrounding context "
+        "immediately before/after each error. "
+        "Discard: successful step logs, dependency install output, "
+        "cache hits, timing/progress noise, and anything unrelated "
+        "to the failure. "
+        "Return only the extracted relevant log content, no commentary."
+    )
+
+    messages=[
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=f"Here are the raw CI logs:\n\n{raw_logs}")
+    ]
+
+    result=model.invoke(messages)
+    data=result.content
+
+    return {
+        "logs":data
+    }
 
 @traceable(name="fetch tree")
 def fetch_tree(state: Data):

@@ -3,7 +3,7 @@ from agent_tools import read_file, read_multiple_files, search_code, update_file
 from state import Data
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
+llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")
 tools = [read_file, read_multiple_files, search_code, update_file,create_file]
 
 SYSTEM_PROMPT = """
