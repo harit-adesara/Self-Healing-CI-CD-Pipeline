@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 def _resolve_ref(state: Data):
     """
     Always read from the branch head, never a possibly-stale commit_sha.
@@ -17,6 +18,7 @@ def _resolve_ref(state: Data):
     """
     return state.get("branch_name") or state["branch"]
 
+
 @tool
 def read_file(
     state: Annotated[Data, InjectedState],
@@ -24,8 +26,26 @@ def read_file(
     file_path: str,
 ):
     """
-    Read the complete contents of a repository file...
+    Read the complete contents of a repository file.
+
+    If this file has already been modified during this session, this
+    returns the in-progress modified version instead of the original
+    GitHub content — never re-fetches a file that has already been
+    edited, since that would return stale/pre-fix content.
     """
+
+    if file_path in state.get("modified_files", {}):
+        content = state["modified_files"][file_path]
+        return Command(update={
+            "messages": [
+                {
+                    "role": "tool",
+                    "content": f"Contents of '{file_path}' (already modified in this session):\n\n{content}",
+                    "tool_call_id": tool_call_id,
+                }
+            ],
+        })
+
     try:
         github = get_github_client(state["installation_id"])
         repo = github.get_repo(f"{state['owner']}/{state['repo']}")
@@ -55,23 +75,34 @@ def read_multiple_files(
     tool_call_id: Annotated[str, InjectedToolCallId],
     file_paths: list[str],
 ):
-    """..."""
+    """
+    Read the complete contents of multiple repository files at once.
+
+    For any file already modified during this session, this returns the
+    in-progress modified version instead of re-fetching the original
+    from GitHub.
+    """
     github = get_github_client(state["installation_id"])
     repo = github.get_repo(f"{state['owner']}/{state['repo']}")
     ref = _resolve_ref(state)
     merged = dict(state["file_contents"])
-    read_ok = []
+    modified = state.get("modified_files", {})
     contents_summary = []
 
     for path in file_paths:
+        if path in modified:
+            content = modified[path]
+            contents_summary.append(f"--- {path} (already modified in this session) ---\n{content}")
+            continue
+
         try:
             file = repo.get_contents(path, ref=ref)
             content = file.decoded_content.decode("utf-8")
             merged[path] = content
-            read_ok.append(path)
             contents_summary.append(f"--- {path} ---\n{content}")
         except Exception as e:
             print(f"Error reading {path}: {e}")
+            contents_summary.append(f"--- {path} ---\nError reading file: {e}")
 
     summary_text = "\n\n".join(contents_summary) if contents_summary else "No files could be read."
 
@@ -98,7 +129,6 @@ def search_code(state: Annotated[Data, InjectedState], query: str):
     changes made on AI_FIX branches. For branch-accurate results, prefer
     checking `repository_tree` (already scoped to the current branch) and
     use read_file/read_multiple_files to inspect actual current contents.
-    ...
     """
     try:
         github = get_github_client(state["installation_id"])
@@ -108,6 +138,7 @@ def search_code(state: Annotated[Data, InjectedState], query: str):
         return f"Found files: {files}"
     except Exception as e:
         return f"Error searching code: {e}"
+
 
 @tool
 def create_file(
@@ -135,7 +166,11 @@ def create_file(
 
     Create only files required to resolve the CI/CD failure.
     """
-    if file_path in state["file_contents"] or file_path in state["repository_tree"]:
+    if (
+        file_path in state["file_contents"]
+        or file_path in state["repository_tree"]
+        or file_path in state.get("modified_files", {})
+    ):
         return f"Error: '{file_path}' already exists. Use update_file instead."
 
     modified = dict(state["modified_files"])
@@ -151,6 +186,7 @@ def create_file(
             }
         ],
     })
+
 
 @tool
 def update_file(

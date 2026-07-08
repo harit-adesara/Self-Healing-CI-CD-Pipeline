@@ -73,7 +73,9 @@ If a fix is required, suggest or perform it.
         result = agent.invoke({
             **state,
             "messages": [user_message],
-        })
+        },
+            config={"recursion_limit": 25}
+        )
         print(result)
 
         return {
