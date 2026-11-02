@@ -6,6 +6,8 @@ import traceback
 
 app = FastAPI()
 
+processed_runs = set()
+
 
 @app.post("/webhook")
 async def github_webhook(request: Request):
@@ -39,6 +41,9 @@ async def github_webhook(request: Request):
         ):
             print("❌ EVENT FILTER FAILED - Ignoring webhook", flush=True)
 
+            run_key = f"{run_id}-{workflow_run.get('run_attempt', 1)}"
+
+
             return {
                 "status": "ignored",
                 "reason": (
@@ -50,6 +55,13 @@ async def github_webhook(request: Request):
 
         print("✅ EVENT FILTER PASSED", flush=True)
 
+        run_key = f"{run_id}-{workflow_run.get('run_attempt', 1)}"
+
+        if run_key in processed_runs:
+            print("❌ DUPLICATE DELIVERY - Ignoring", flush=True)
+            return {"status": "ignored", "reason": "duplicate_run"}
+
+        processed_runs.add(run_key)
         # 3. Get repository information
         repo_info = payload.get("repository", {})
 
