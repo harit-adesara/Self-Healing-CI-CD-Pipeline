@@ -66,6 +66,33 @@ async def github_webhook(request: Request):
     except Exception as e:
         return {"status": "error", "message": f"Could not resolve live branch head: {e}"}
 
+    if branch.startswith("AI_FIX"):
+        try:
+            total_commits = repo.get_commits(
+                sha=live_sha
+            ).totalCount
+
+            print(
+                f"Branch: {branch} | "
+                f"Total commits: {total_commits}"
+            )
+
+            if total_commits > 10:
+
+                return {
+                    "status": "ignored",
+                    "reason": "AI_FIX branch exceeded 10 commits",
+                    "branch": branch,
+                    "total_commits": total_commits,
+                    "limit": 10
+                }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"Could not check AI_FIX commits: {e}"
+            }
+
     state: Data = {
         "owner": owner,
         "repo": repo_name,
