@@ -4,8 +4,8 @@ import io
 import zipfile
 import requests
 from state import Data,ErrorClassification,CommitMessage
-from langchain_openai import ChatOpenAI
-from github import Github
+from langchain_google_genai import ChatGoogleGenerativeAI
+from github import Github, GithubIntegration
 from github.Auth import AppAuth
 from github import InputGitTreeElement
 from langchain_core.messages import SystemMessage,HumanMessage
@@ -15,11 +15,7 @@ from langsmith import traceable
     
 load_dotenv()
 
-model=ChatOpenAI(
-    api_key=os.getenv("CEREBRAS_API_KEY"),
-    model="gpt-oss-120b",
-    base_url="https://api.cerebras.ai/v1"
-)
+model = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")
 
 def get_github_client(installation_id: int):
     APP_ID = os.getenv("GITHUB_APP_ID")
@@ -30,6 +26,29 @@ def get_github_client(installation_id: int):
     installation_auth = auth.get_installation_auth(installation_id)
 
     return Github(auth=installation_auth)
+
+def get_installation_id(owner: str, repo: str) -> int:
+    """Find the GitHub App installation id for a repo (used when the webhook
+    payload has no `installation` field)."""
+    APP_ID = os.getenv("GITHUB_APP_ID")
+    PRIVATE_KEY = os.getenv("GITHUB_PRIVATE_KEY_PATH")
+
+    auth = AppAuth(APP_ID, PRIVATE_KEY)
+    gi = GithubIntegration(auth=auth)
+
+    return gi.get_repo_installation(owner, repo).id
+
+
+def _to_text(content) -> str:
+    """Gemini returns content as a list of blocks; always store plain text."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            p.get("text", "") if isinstance(p, dict) else str(p) for p in content
+        )
+    return str(content)
+
 
 @traceable(name="Summarize logs")
 def summarize_logs_node(state: Data):
@@ -56,7 +75,7 @@ def summarize_logs_node(state: Data):
     ]
 
     result=model.invoke(messages)
-    data=result.content
+    data=_to_text(result.content)
 
     return {
         "logs":data
@@ -274,7 +293,7 @@ Return only the structured output.
 def suggestFix(state:Data):
     prompt = f"For this error {state['reason']} suggest fix how to solve this"
 
-    result=model.invoke(prompt).content
+    result=_to_text(model.invoke(prompt).content)
 
     print("suggest fix")
     return {
