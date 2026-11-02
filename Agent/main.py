@@ -81,7 +81,7 @@ async def github_webhook(request: Request):
 
                 return {
                     "status": "ignored",
-                    "reason": "AI_FIX branch exceeded 10 commits",
+                    "reason": "AI_FIX branch exceeded 10 commits. Manual inspection needed",
                     "branch": branch,
                     "total_commits": total_commits,
                     "limit": 10
