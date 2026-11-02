@@ -2,7 +2,7 @@
 
 An autonomous agent system that **detects, diagnoses, and repairs failed GitHub Actions workflows** — automatically opening a fix branch, patching the offending files, and committing a working solution, with no human intervention for auto-fixable issues.
 
-Built with [LangGraph](https://github.com/langchain-ai/langgraph) for orchestration, GitHub Apps for repository access, and LLMs (Cerebras `gpt-oss-120b` + Google `gemini-3.1-flash-lite`) for reasoning and code repair.
+Built with [LangGraph](https://github.com/langchain-ai/langgraph) for orchestration, GitHub Apps for repository access, and LLM `gemini-3.1-flash-lite` for reasoning and code repair.
 
 ---
 
@@ -77,7 +77,7 @@ flowchart TD
 | Node                           | Purpose                                                                                                                                                                                                                             |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `download_logs`                | Downloads and unzips the failed workflow run's logs via the GitHub Actions API.                                                                                                                                                     |
-| `summarize_logs`               | Uses an LLM (Cerebras `gpt-oss-120b`) to strip raw logs down to only the failure-relevant content — error messages, stack traces, failing tests, and surrounding context — discarding install output, cache hits, and timing noise. |
+| `summarize_logs`               | Uses an LLM (`gemini-3.1-flash-lite`) to strip raw logs down to only the failure-relevant content — error messages, stack traces, failing tests, and surrounding context — discarding install output, cache hits, and timing noise. |
 | `fetch_tree`                   | Resolves the **live** HEAD of the branch and lists every file path in the repo (avoids stale webhook SHAs).                                                                                                                         |
 | `classify_error`               | Uses an LLM with a structured output schema to classify the failure as `auto` / `manual` / `unknown`, with a confidence score and detailed reason.                                                                                  |
 | `check_branch` (router)        | Decides the next path: skip to `suggest_fix` if not auto-fixable; otherwise reuse an existing `AI_FIX` branch or create a new one.                                                                                                  |
@@ -112,8 +112,8 @@ The agent follows a strict system prompt that enforces:
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | Orchestration                    | [LangGraph](https://github.com/langchain-ai/langgraph) (`StateGraph`)                                           |
 | Repair agent                     | [LangChain](https://github.com/langchain-ai/langchain) `create_agent` + Google Gemini (`gemini-3.1-flash-lite`) |
-| Log summarization                | Cerebras-hosted `gpt-oss-120b` via `ChatOpenAI` (OpenAI-compatible endpoint)                                    |
-| Classification / commit messages | Cerebras-hosted `gpt-oss-120b` via `ChatOpenAI` (OpenAI-compatible endpoint)                                    |
+| Log summarization                | `gemini-3.1-flash-lite`                                                                                         |
+| Classification / commit messages | `gemini-3.1-flash-lite`                                                                                         |
 | Source control                   | [PyGithub](https://github.com/PyGithub/PyGithub) with a **GitHub App** installation token                       |
 | Observability                    | [LangSmith](https://www.langchain.com/langsmith) tracing                                                        |
 
